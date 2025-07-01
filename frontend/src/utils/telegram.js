@@ -1,7 +1,53 @@
+// Мок-данные для разработки вне Telegram WebApp
+const DEV_MOCK_USER = {
+  id: 99281932,
+  first_name: 'Andrew',
+  last_name: 'Rogue',
+  username: 'rogue',
+  language_code: 'en',
+  is_premium: true,
+  allows_write_to_pm: true,
+  photo_url: 'https://t.me/i/userpic/320/rogue.jpg'
+};
+const DEV_MOCK_INITDATA = 'user=' + encodeURIComponent(JSON.stringify(DEV_MOCK_USER)) +
+  '&hash=89d6079ad6762351f38c6dbbc41bb53048019256a9443988af7a48bcad16ba31' +
+  '&auth_date=1716922846&start_param=debug&chat_type=sender&chat_instance=8428209589180549439&signature=6fbdaab833d39f54518bd5c3eb3f511d035e68cb';
+
+function isDevMock() {
+  return (
+    typeof window !== 'undefined' &&
+    (!window.Telegram || !window.Telegram.WebApp) &&
+    (import.meta?.env?.DEV || process.env.NODE_ENV === 'development')
+  );
+}
+
 // Получаем объект Telegram Web App
 export const getTelegramWebApp = () => {
   if (typeof window !== 'undefined' && window.Telegram && window.Telegram.WebApp) {
     return window.Telegram.WebApp;
+  }
+  // Возвращаем мок-объект для разработки
+  if (isDevMock()) {
+    return {
+      initData: DEV_MOCK_INITDATA,
+      initDataUnsafe: { user: DEV_MOCK_USER, start_param: 'debug' },
+      colorScheme: 'light',
+      isExpanded: true,
+      platform: 'tdesktop',
+      ready: () => {},
+      expand: () => {},
+      setHeaderColor: () => {},
+      setBackgroundColor: () => {},
+      MainButton: {
+        show: () => {},
+        hide: () => {},
+        onClick: () => {},
+        text: ''
+      },
+      showAlert: (msg) => alert(msg),
+      showPopup: ({ message }) => alert(message),
+      close: () => {},
+    };
   }
   return null;
 };

@@ -26,6 +26,26 @@ const waitForTelegram = (timeout = 10000) => {
   });
 };
 
+// Мок-данные для разработки вне Telegram WebApp
+const DEV_MOCK_USER = {
+  id: 99281932,
+  first_name: 'Andrew',
+  last_name: 'Rogue',
+  username: 'rogue',
+  language_code: 'en',
+  is_premium: true,
+  allows_write_to_pm: true,
+  photo_url: 'https://t.me/i/userpic/320/rogue.jpg'
+};
+const DEV_MOCK_INITDATA = 'user=' + encodeURIComponent(JSON.stringify(DEV_MOCK_USER)) +
+  '&hash=89d6079ad6762351f38c6dbbc41bb53048019256a9443988af7a48bcad16ba31' +
+  '&auth_date=1716922846&start_param=debug&chat_type=sender&chat_instance=8428209589180549439&signature=6fbdaab833d39f54518bd5c3eb3f511d035e68cb';
+
+const isDevMock = () =>
+  (typeof window !== 'undefined' && (!window.Telegram || !window.Telegram.WebApp)) &&
+  (import.meta?.env?.DEV || process.env.NODE_ENV === 'development');
+const isMockApi = () => typeof window !== 'undefined' && window.USE_MOCK_API === true;
+
 export const useTelegram = () => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -40,8 +60,18 @@ export const useTelegram = () => {
       console.log('🔄 Waiting for Telegram WebApp to load...');
       
       // Ожидаем загрузки Telegram WebApp
-      const tg = await waitForTelegram();
-      
+      let tg;
+      if (isDevMock()) {
+        tg = {
+          initData: DEV_MOCK_INITDATA,
+          initDataUnsafe: { user: DEV_MOCK_USER, start_param: 'debug' },
+          ready: () => {},
+          expand: () => {},
+        };
+      } else {
+        tg = await waitForTelegram();
+      }
+
       console.log('✅ Telegram WebApp available');
 
       // Ждем дополнительно для полной инициализации
@@ -49,18 +79,30 @@ export const useTelegram = () => {
       
       // Получаем initData от Telegram
       let initData = tg.initData;
-      
-      // Если initData пустая, пробуем получить из initDataUnsafe
       if (!initData && tg.initDataUnsafe) {
-        console.log('📝 Using initDataUnsafe as fallback');
         initData = JSON.stringify(tg.initDataUnsafe);
       }
-      
       if (!initData) {
         throw new Error('No init data from Telegram WebApp');
       }
 
       console.log('🔍 Initializing with Telegram data...');
+
+      // Мок-режим: возвращаем DEV_MOCK_USER без запросов
+      if (isMockApi()) {
+        setUser(DEV_MOCK_USER);
+        setIsAuthenticated(true);
+        return;
+      }
+
+      // Если dev mock, не делаем реальный запрос на /auth, а сразу возвращаем пользователя
+      if (isDevMock()) {
+        setUser(DEV_MOCK_USER);
+        setIsAuthenticated(true);
+        tg.ready && tg.ready();
+        tg.expand && tg.expand();
+        return;
+      }
 
       // Отправляем initData на auth-service для валидации
       const authResponse = await fetch(`${API_BASE_URL}/auth`, {
@@ -76,6 +118,14 @@ export const useTelegram = () => {
       const authData = await authResponse.json();
 
       if (!authResponse.ok || !authData.success) {
+        // Если dev-режим, возвращаем мок-данные даже при ошибке авторизации
+        if (isDevMock()) {
+          setUser(DEV_MOCK_USER);
+          setIsAuthenticated(true);
+          tg.ready && tg.ready();
+          tg.expand && tg.expand();
+          return;
+        }
         console.error('❌ Auth failed:', authData);
         throw new Error(authData.error || 'Authentication failed');
       }

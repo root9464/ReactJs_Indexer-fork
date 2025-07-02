@@ -1,9 +1,36 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+/* eslint-disable no-undef */
+import { NodeGlobalsPolyfillPlugin } from '@esbuild-plugins/node-globals-polyfill';
+import { NodeModulesPolyfillPlugin } from '@esbuild-plugins/node-modules-polyfill';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    NodeGlobalsPolyfillPlugin({
+      buffer: true,
+      process: true,
+    }),
+  ],
+
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom', 'recharts', 'react-router-dom', '@ton/core', '@ton/crypto', '@tonconnect/ui-react'],
+    exclude: [],
+    esbuildOptions: {
+      define: {
+        global: 'globalThis',
+      },
+      plugins: [
+        NodeGlobalsPolyfillPlugin({
+          buffer: true,
+          process: true,
+        }),
+        NodeModulesPolyfillPlugin(),
+      ],
+    },
+  },
+
   server: {
     host: true,
     port: 3000,
@@ -19,15 +46,14 @@ export default defineConfig({
     ],
     proxy: {
       '/api': {
-        target: process.env.NODE_ENV === 'development' 
-          ? 'http://localhost:5000' 
-          : 'http://bff:5000',
+        target: process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : 'http://bff:5000',
         changeOrigin: true,
         secure: false,
         // НЕ удаляем /api префикс, так как backend ожидает полный путь
-      }
-    }
+      },
+    },
   },
+
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
@@ -38,27 +64,23 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom'],
           charts: ['recharts'],
-          router: ['react-router-dom']
+          router: ['react-router-dom'],
         },
         chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]'
-      }
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+      },
     },
     // Используем стандартную минификацию esbuild (встроена в Vite)
     minify: true,
-    target: 'es2015'
+    target: 'es2015',
   },
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
-    'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || '/api')
+    'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || '/api'),
   },
   esbuild: {
     loader: 'jsx',
     include: /src\/.*\.[jt]sx?$/,
-    exclude: []
+    exclude: [],
   },
-  optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', 'recharts'],
-    exclude: []
-  }
-})
+});
